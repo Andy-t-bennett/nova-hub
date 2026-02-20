@@ -1,0 +1,66 @@
+# Nova Hub — Framework-Level Preferences
+# These apply to all projects unless overridden by project preferences.
+# Project preferences deep-merge on top of these (project wins).
+#
+# Every preference uses a structured format:
+#   value: the actual setting
+#   description: why this rule exists
+#   agent_instruction: what the agent should do to comply
+#
+# Rules prefixed with must_ are hard guardrails.
+# Projects cannot override must_* rules without human resolution.
+# Regular preferences can be freely overridden by projects.
+
+coding:
+  commit_style:
+    value: "conventional"
+    description: "Use conventional commit format for clear, parseable git history."
+    agent_instruction: "Format all commit messages as conventional commits: feat:, fix:, refactor:, docs:, test:, chore:. Include the task ID in the message body (e.g. 'feat: add hero section [v1-003]')."
+
+  max_file_length:
+    value: 500
+    description: "Files beyond this line count should be split for readability and maintainability."
+    agent_instruction: "If a file exceeds 500 lines, split it into smaller modules with clear responsibilities. If editing an existing file that already exceeds 500 lines, flag it in your response but don't refactor unless the task requires it."
+
+  prefer_explicit_imports:
+    value: true
+    description: "Explicit imports make dependencies visible and aid code comprehension."
+    agent_instruction: "Use named imports (e.g. 'from module import Thing') instead of wildcard imports ('from module import *') or bare module imports where practical."
+
+documentation:
+  require_readme:
+    value: true
+    description: "Every project should have a README explaining what it is and how to run it."
+    agent_instruction: "If the project does not have a README.md, create one as part of the first task. Include project name, description, setup instructions, and how to run it."
+
+  require_decisions_for_architecture:
+    value: true
+    description: "Significant architectural choices should be recorded as ADRs so future contributors understand why."
+    agent_instruction: "When making a non-trivial architectural decision (new dependency, data model change, infrastructure choice), create an ADR in docs/decisions/ with the format: context, decision, consequences."
+
+testing:
+  must_run_build_before_done:
+    value: true
+    description: "Every task must have a passing build before it can be marked DONE."
+    agent_instruction: "Before returning status: done, execute the project's build command (e.g. npm run build, cargo build, pytest) and verify it exits with code 0. If the build fails, fix the issue or escalate."
+
+  prefer_tests_for_logic:
+    value: true
+    description: "Business logic and utility functions should have test coverage."
+    agent_instruction: "When implementing functions with logic (calculations, transformations, validation), write unit tests alongside the implementation. Pure UI or layout code does not require tests."
+
+review:
+  check_against_spec:
+    value: true
+    description: "Code changes should be validated against the approved spec to prevent drift."
+    agent_instruction: "Compare the implementation against the relevant spec acceptance criteria. Flag any deviation — missing features, extra features not in spec, or behavior that contradicts the spec."
+
+  check_against_preferences:
+    value: true
+    description: "Code should comply with both framework and project preferences."
+    agent_instruction: "Check the implementation against all active preferences (commit style, file length, import style, test coverage, etc.). Flag violations with the specific preference that was breached."
+
+  flag_unrelated_changes:
+    value: true
+    description: "Changes outside the scope of the current task create noise and risk."
+    agent_instruction: "If the diff contains changes to files or logic not related to the current task, flag them. Minor adjacent fixes (typo in a neighboring line) are acceptable; refactoring unrelated code is not."

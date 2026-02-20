@@ -1,0 +1,20 @@
+# Virtual environment
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Projects are independent repos
+projects/*/
+
+# IDE
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store

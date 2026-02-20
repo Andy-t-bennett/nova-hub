@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nova-hub"
+version = "0.1.0"
+description = "A deterministic multi-agent development runtime"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.42.0",
+    "typer>=0.15.0",
+    "pydantic>=2.10.0",
+    "pyyaml>=6.0",
+    "rich>=13.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+]
+
+[project.scripts]
+nova = "nova.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["nova*"]

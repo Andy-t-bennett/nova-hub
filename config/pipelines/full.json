@@ -1,0 +1,21 @@
+{
+  "name": "full",
+  "description": "Standard pipeline: Coder implements, Reviewer checks, QA validates.",
+  "steps": [
+    {
+      "role": "coder",
+      "required": true,
+      "on_fail": "escalate"
+    },
+    {
+      "role": "reviewer",
+      "required": true,
+      "on_fail": "escalate"
+    },
+    {
+      "role": "qa",
+      "required": true,
+      "on_fail": "escalate"
+    }
+  ]
+}
