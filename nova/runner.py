@@ -2,7 +2,9 @@
 
 import json
 import subprocess
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -29,7 +31,7 @@ from nova.models import (
     TaskState,
 )
 
-from nova.paths import get_project_docs, get_project_logs, get_project_src
+from nova.paths import get_project_docs, get_project_logs, get_project_root, get_project_src
 from nova.prompt import compose_system_prompt
 from nova.state import all_tasks_done, save_state, transition_phase, transition_task
 
@@ -348,6 +350,15 @@ def get_next_runnable_task(state: ProjectState) -> Task | None:
     if not candidates:
         return None
     return sorted(candidates, key=lambda t: t.order)[0]
+
+
+def get_all_runnable_tasks(state: ProjectState) -> list[Task]:
+    """Get ALL READY tasks whose dependencies are satisfied, sorted by order."""
+    candidates = [
+        t for t in state.tasks
+        if t.state == TaskState.READY and _deps_satisfied(t, state)
+    ]
+    return sorted(candidates, key=lambda t: t.order)
 
 
 # ---------------------------------------------------------------------------
@@ -749,6 +760,65 @@ def _resolve_escalation(
 
 MAX_ESCALATIONS = 2
 
+_git_lock = threading.Lock()
+
+
+# ---------------------------------------------------------------------------
+# Git auto-commit
+# ---------------------------------------------------------------------------
+
+def _git_commit_task(task: Task, project_name: str) -> str | None:
+    """Stage all changes in the project directory and commit with a task message.
+
+    Thread-safe — serialized via _git_lock so parallel tasks don't collide.
+    Returns the commit SHA on success, None on failure.
+    """
+    project_root = get_project_root(project_name)
+
+    if not (project_root / ".git").exists():
+        return None
+
+    with _git_lock:
+        try:
+            subprocess.run(
+                ["git", "add", "-A"],
+                cwd=project_root,
+                capture_output=True,
+                check=True,
+            )
+
+            status = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=project_root,
+                capture_output=True,
+                text=True,
+            )
+            if not status.stdout.strip():
+                return None
+
+            msg = f"[nova] {task.id}: {task.title}"
+            subprocess.run(
+                ["git", "commit", "-m", msg],
+                cwd=project_root,
+                capture_output=True,
+                check=True,
+            )
+
+            result = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=project_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            sha = result.stdout.strip()
+            console.print(f"  [dim]Committed: {sha} — {msg}[/dim]")
+            return sha
+
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            console.print(f"  [yellow]Git commit skipped: {e}[/yellow]")
+            return None
+
 
 def _run_coder_qa_loop(
     task: Task,
@@ -788,6 +858,7 @@ def _run_coder_qa_loop(
         if isinstance(qa_output, QAOutput) and qa_output.verdict == "pass":
             transition_task(task, TaskState.DONE)
             save_state(state)
+            _git_commit_task(task, state.project_name)
             suffix = f" (after escalation)" if label else ""
             console.print(f"\n  [bold green]✓ Task {task.id} complete{suffix}[/bold green]")
             return True
@@ -898,12 +969,37 @@ def run_task(
 # Full pipeline
 # ---------------------------------------------------------------------------
 
+def _run_batch_parallel(
+    batch: list[Task],
+    state: ProjectState,
+    models: ModelsConfig,
+    preferences: dict[str, Any],
+) -> dict[str, bool]:
+    """Run a batch of independent tasks in parallel. Returns {task_id: success}."""
+    results: dict[str, bool] = {}
+
+    with ThreadPoolExecutor(max_workers=len(batch)) as executor:
+        future_to_task = {
+            executor.submit(run_task, task, state, models, preferences): task
+            for task in batch
+        }
+        for future in as_completed(future_to_task):
+            task = future_to_task[future]
+            try:
+                results[task.id] = future.result()
+            except Exception as e:
+                console.print(f"\n  [red]Task {task.id} raised an exception: {e}[/red]")
+                results[task.id] = False
+
+    return results
+
+
 def run_pipeline(
     state: ProjectState,
     models: ModelsConfig,
     preferences: dict[str, Any],
 ) -> None:
-    """Run all READY tasks in dependency order with human confirmation between tasks."""
+    """Run all READY tasks in dependency order. Independent tasks run in parallel."""
     total = len(state.tasks)
     done_count = sum(1 for t in state.tasks if t.state in (TaskState.DONE, TaskState.ARCHIVED))
 
@@ -915,8 +1011,9 @@ def run_pipeline(
     ))
 
     while True:
-        task = get_next_runnable_task(state)
-        if task is None:
+        batch = get_all_runnable_tasks(state)
+
+        if not batch:
             if all_tasks_done(state):
                 console.print("\n[bold green]All tasks complete![/bold green]")
                 transition_phase(state, ProjectPhase.COMPLETE)
@@ -936,11 +1033,34 @@ def run_pipeline(
                     console.print("\n[yellow]No runnable tasks found.[/yellow]")
             break
 
-        success = run_task(task, state, models, preferences)
+        batch_ids = ", ".join(t.id for t in batch)
 
-        if not success:
-            console.print("\n[yellow]Task failed. Fix the issue and re-run.[/yellow]")
-            break
+        if len(batch) == 1:
+            console.print(f"\n[dim]Next task: {batch_ids}[/dim]")
+            success = run_task(batch[0], state, models, preferences)
+            if not success:
+                console.print("\n[yellow]Task failed. Fix the issue and re-run.[/yellow]")
+                break
+        else:
+            console.print(f"\n[bold cyan]Parallel batch ({len(batch)} tasks):[/bold cyan] {batch_ids}")
+            results = _run_batch_parallel(batch, state, models, preferences)
+
+            succeeded = sum(1 for v in results.values() if v)
+            failed = sum(1 for v in results.values() if not v)
+
+            console.print(f"\n[bold]Batch result:[/bold] [green]{succeeded} passed[/green]", end="")
+            if failed:
+                console.print(f", [red]{failed} failed[/red]")
+                failed_ids = [tid for tid, ok in results.items() if not ok]
+                for tid in failed_ids:
+                    t = next(t for t in state.tasks if t.id == tid)
+                    console.print(f"  [red]• {tid}: {t.blocked_reason or 'failed'}[/red]")
+            else:
+                console.print()
+
+            if failed and not succeeded:
+                console.print("\n[yellow]All tasks in batch failed. Fix issues and re-run.[/yellow]")
+                break
 
         done_count = sum(1 for t in state.tasks if t.state in (TaskState.DONE, TaskState.ARCHIVED))
         remaining = total - done_count
@@ -952,7 +1072,7 @@ def run_pipeline(
         console.print(f"[dim]{done_count}/{total} tasks done, {remaining} remaining[/dim]")
 
         try:
-            answer = console.input("\n[bold]Continue to next task? [Y/n/q]: [/bold]").strip().lower()
+            answer = console.input("\n[bold]Continue to next batch? [Y/n/q]: [/bold]").strip().lower()
         except (KeyboardInterrupt, EOFError):
             console.print("\n[yellow]Pipeline paused. Re-run to continue.[/yellow]")
             break

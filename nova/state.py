@@ -1,6 +1,7 @@
 """State machine and persistence for tasks and projects."""
 
 import json
+import threading
 from pathlib import Path
 
 from nova.models import (
@@ -11,6 +12,8 @@ from nova.models import (
     TaskState,
 )
 from nova.paths import get_project_root
+
+_state_lock = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -133,9 +136,10 @@ def _state_file(project_name: str) -> Path:
 
 
 def save_state(state: ProjectState) -> Path:
-    path = _state_file(state.project_name)
-    path.write_text(state.model_dump_json(indent=2))
-    return path
+    with _state_lock:
+        path = _state_file(state.project_name)
+        path.write_text(state.model_dump_json(indent=2))
+        return path
 
 
 def load_state(project_name: str) -> ProjectState:
