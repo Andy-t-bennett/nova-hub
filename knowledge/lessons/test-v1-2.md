@@ -1,0 +1,1 @@
+When QA detects a build failure, verify whether the failure originates from the current task's changes before retrying or failing the task — v1-009 QA reported failures caused by import errors in ProblemStatement and Agents components that were unrelated to the Footer task, wasting 2 QA cycles on a problem the Footer coder could not fix.

@@ -1,31 +1,25 @@
 {
   "roles": {
     "planner": {
-      "model": "claude-opus-4-0-20250514",
+      "model": "claude-opus-4-6",
       "provider": "anthropic",
       "max_tokens": 8192,
       "temperature": 0.7
     },
     "coder": {
-      "model": "claude-sonnet-4-20250514",
+      "model": "claude-sonnet-4-6",
       "provider": "anthropic",
-      "max_tokens": 8192,
-      "temperature": 0.0
-    },
-    "reviewer": {
-      "model": "claude-sonnet-4-20250514",
-      "provider": "anthropic",
-      "max_tokens": 4096,
+      "max_tokens": 16384,
       "temperature": 0.0
     },
     "qa": {
-      "model": "claude-sonnet-4-20250514",
+      "model": "claude-sonnet-4-6",
       "provider": "anthropic",
       "max_tokens": 4096,
       "temperature": 0.0
     },
     "distiller": {
-      "model": "claude-opus-4-0-20250514",
+      "model": "claude-opus-4-6",
       "provider": "anthropic",
       "max_tokens": 8192,
       "temperature": 0.5

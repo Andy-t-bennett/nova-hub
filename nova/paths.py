@@ -31,4 +31,4 @@ def get_project_preferences(project_name: str) -> Path:
 
 
 def get_project_src(project_name: str) -> Path:
-    return get_project_root(project_name) / "src"
+    return get_project_root(project_name) / "code"

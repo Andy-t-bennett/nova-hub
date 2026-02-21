@@ -115,6 +115,7 @@ class QAOutput(AgentOutput):
     role: AgentRole = AgentRole.QA
     verdict: str = ""
     commands_run: list[CommandResult] = Field(default_factory=list)
+    violations: list[str] = Field(default_factory=list)
     notes: str = ""
 
 
@@ -122,6 +123,9 @@ class PlannerOutput(AgentOutput):
     role: AgentRole = AgentRole.PLANNER
     artifact_content: str = ""                       # spec, plan, or task list content
     decisions: list[str] = Field(default_factory=list)
+    # Escalation resolution fields
+    resolution: str = ""                             # "retry" or "human_needed"
+    guidance: str = ""                               # instructions for Coder on retry
 
 
 class DistillerOutput(AgentOutput):

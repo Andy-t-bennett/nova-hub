@@ -1,21 +1,27 @@
 {
   "name": "full",
-  "description": "Standard pipeline: Coder implements, Reviewer checks, QA validates.",
+  "description": "Standard pipeline: Coder implements, lint/build validates, QA checks acceptance criteria and spec compliance.",
   "steps": [
     {
       "role": "coder",
       "required": true,
-      "on_fail": "escalate"
-    },
-    {
-      "role": "reviewer",
-      "required": true,
-      "on_fail": "escalate"
+      "on_fail": "retry",
+      "max_attempts": 3
     },
     {
       "role": "qa",
       "required": true,
-      "on_fail": "escalate"
+      "on_fail": "retry",
+      "max_attempts": 3,
+      "includes": ["build", "lint", "acceptance_criteria", "spec_compliance"]
     }
-  ]
+  ],
+  "escalation": {
+    "to": "planner",
+    "max_escalations": 2,
+    "on_exhausted": "block"
+  },
+  "post_completion": {
+    "distiller": true
+  }
 }

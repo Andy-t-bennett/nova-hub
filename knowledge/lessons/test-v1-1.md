@@ -1,0 +1,1 @@
+When a shared data/content module is created in one task and imported by many downstream tasks, include the exact export names in each consuming task's description — v1-009 QA failed twice because Agents.jsx imported 'agentsContent' instead of the actual export name from content.js, a mismatch that could have been prevented by making the contract explicit in the plan.

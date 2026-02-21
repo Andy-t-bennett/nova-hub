@@ -20,8 +20,8 @@ from nova.paths import get_project_root
 TASK_TRANSITIONS: dict[TaskState, set[TaskState]] = {
     TaskState.NEW:         {TaskState.READY},
     TaskState.READY:       {TaskState.IN_PROGRESS},
-    TaskState.IN_PROGRESS: {TaskState.IN_REVIEW, TaskState.BLOCKED},
-    TaskState.IN_REVIEW:   {TaskState.IN_QA, TaskState.IN_PROGRESS, TaskState.BLOCKED},
+    TaskState.IN_PROGRESS: {TaskState.IN_QA, TaskState.BLOCKED},
+    TaskState.IN_REVIEW:   {TaskState.IN_QA, TaskState.IN_PROGRESS, TaskState.BLOCKED},  # kept for backwards compat
     TaskState.IN_QA:       {TaskState.DONE, TaskState.IN_PROGRESS, TaskState.BLOCKED},
     TaskState.DONE:        {TaskState.ARCHIVED},
     TaskState.BLOCKED:     {TaskState.READY},
